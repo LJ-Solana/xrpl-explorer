@@ -11,7 +11,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange }) => (
   <header className="bg-gray-900 border-b border-gray-800 shadow-lg rounded-t-xl">
     <div className="container mx-auto flex flex-col md:flex-row items-center justify-between py-6 px-4">
       <div className="flex items-center gap-3">
-        <svg className="h-8 w-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2" /></svg>
         <span className="text-2xl font-bold tracking-tight text-white">Beacon</span>
       </div>
       <div className="flex items-center gap-6 mt-4 md:mt-0">
@@ -29,7 +28,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange }) => (
             Governance
           </button>
         </nav>
-        <button className="ml-4 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold shadow">Sign In</button>
       </div>
     </div>
   </header>
