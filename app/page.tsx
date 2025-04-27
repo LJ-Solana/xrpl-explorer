@@ -398,51 +398,44 @@ export default function HomePage() {
 
   // Effect for Handling Hash Changes (Runs only on Client)
   useEffect(() => {
-    // Ensure this runs only on the client
-    if (typeof window !== 'undefined') {
-        const handleHashChange = () => {
-            const hash = window.location.hash.slice(1); // Remove #
-            console.log("Hash changed:", hash); // Debugging
-            if (!hash || hash === '/') {
-                setView({ type: 'home', identifier: null });
-                return;
-            }
-
-            const parts = hash.split('/');
-            if (parts.length === 2) {
-                const [type, identifier] = parts;
-                 // Validate identifier format slightly
-                if (type === 'account' && identifier.startsWith('r') && identifier.length > 25) {
-                     setView({ type, identifier }); return;
-                } else if (type === 'tx' && identifier.length === 64 && /^[A-Fa-f0-9]+$/.test(identifier)) {
-                     setView({ type, identifier }); return;
-                } else if (type === 'ledger' && (/^[0-9]+$/.test(identifier) || (identifier.length === 64 && /^[A-Fa-f0-9]+$/.test(identifier)))) {
-                     setView({ type, identifier }); return;
-                }
-            }
-            // Fallback to home if hash is invalid or doesn't match expected patterns
-            console.warn("Invalid or unrecognized hash route:", hash);
-            setView({ type: 'home', identifier: null });
-            // Avoid automatically correcting the hash here, just show home
-            // window.location.hash = '#/';
-        };
-
-        // Initial check on mount
-        handleHashChange();
-
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
-    }
-  }, []); // Empty dependency array: run once on mount/unmount
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/' || path === '') {
+        setView({ type: 'home', identifier: null });
+        return;
+      }
+      const parts = path.split('/').filter(Boolean);
+      if (parts.length === 2) {
+        const [type, identifier] = parts;
+        if (type === 'account' && identifier.startsWith('r') && identifier.length > 25) {
+          setView({ type, identifier }); return;
+        } else if (type === 'tx' && identifier.length === 64 && /^[A-Fa-f0-9]+$/.test(identifier)) {
+          setView({ type, identifier }); return;
+        } else if (type === 'ledger' && (/^[0-9]+$/.test(identifier) || (identifier.length === 64 && /^[A-Fa-f0-9]+$/.test(identifier)))) {
+          setView({ type, identifier }); return;
+        } else if (type === 'governance') {
+          setView({ type: 'governance', identifier: null }); return;
+        }
+      }
+      setView({ type: 'home', identifier: null });
+    };
+    handlePopState();
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Handle Search Submission
   const handleSearch = (term: string) => {
     if (term.startsWith('r') && term.length > 25) {
-      window.location.hash = `#account/${term}`;
+      window.history.pushState({}, '', `/account/${term}`);
+      setView({ type: 'account', identifier: term });
     } else if (term.length === 64 && /^[A-Fa-f0-9]+$/.test(term)) {
-      window.location.hash = `#tx/${term}`;
+      window.history.pushState({}, '', `/tx/${term}`);
+      setView({ type: 'tx', identifier: term });
     } else if (/^[0-9]+$/.test(term)) {
-      window.location.hash = `#ledger/${term}`;
+      window.history.pushState({}, '', `/ledger/${term}`);
+      setView({ type: 'ledger', identifier: term });
     } else {
       alert('Invalid search term. Please enter a valid Account Address (starts with r), Transaction Hash (64 hex chars), or Ledger Index (number).');
     }
@@ -458,56 +451,77 @@ export default function HomePage() {
             onTabChange={(tab) => {
               if (tab === 'explorer') {
                 setView({ type: 'home', identifier: null });
-                window.location.hash = '/';
+                window.history.pushState({}, '', '/');
               } else if (tab === 'governance') {
                 setView({ type: 'governance', identifier: null });
-                window.location.hash = '/governance';
+                window.history.pushState({}, '', '/governance');
               }
             }}
           />
 
           <main className="container mx-auto p-6 flex-1">
-            <SearchBar onSearch={handleSearch} />
-            <StatusBar 
-              isConnected={isConnected}
-              connectionError={connectionError}
-              latestLedgerIndex={null}
-            />
-            {client && isConnected && (
+            {view.type === 'tx' ? (
+              <div className="max-w-2xl mx-auto pt-8">
+                <button
+                  className="mb-6 flex items-center gap-2 text-purple-400 hover:text-purple-200 font-semibold text-sm px-3 py-2 rounded transition"
+                  onClick={() => {
+                    setView({ type: 'home', identifier: null });
+                    window.history.pushState({}, '', '/');
+                  }}
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  Back to Dashboard
+                </button>
+                <TransactionDetails identifier={view.identifier || ''} client={null} />
+              </div>
+            ) : view.type === 'governance' ? (
+              <GovernancePage />
+            ) : (
               <>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mt-6">
-                  <XRPPriceCard />
-                  <LedgerProgressCard />
-                  <TPSCard />
-                  <LatestLedgersCard />
-                </div>
-                <div className="mt-8">
-                  {view.type === 'ledger' && (
-                    <div className="w-full">
-                      <LedgerDetails identifier={view.identifier || ''} />
+                <SearchBar onSearch={handleSearch} />
+                {client && isConnected && (
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mt-6">
+                      <XRPPriceCard />
+                      <LedgerProgressCard />
+                      <TPSCard />
+                      <LatestLedgersCard />
                     </div>
-                  )}
-                  {view.type === 'account' && (
-                    <AccountDetails identifier={view.identifier || ''} client={null} />
-                  )}
-                  {view.type === 'tx' && (
-                    <TransactionDetails identifier={view.identifier || ''} client={client} />
-                  )}
-                </div>
+                    <div className="mt-8">
+                      {view.type === 'ledger' && (
+                        <div className="w-full">
+                          <LedgerDetails identifier={view.identifier || ''} />
+                        </div>
+                      )}
+                      {view.type === 'account' && (
+                        <AccountDetails identifier={view.identifier || ''} client={null} />
+                      )}
+                    </div>
+                  </>
+                )}
+                {!client && !connectionError && !isConnected && (
+                  <LoadingSpinner size="lg" text="Connecting to XRPL network..." />
+                )}
+                {connectionError && !isConnected && (
+                  <ErrorMessage message={`Connection Failed: ${connectionError}`} />
+                )}
               </>
-            )}
-            {!client && !connectionError && !isConnected && (
-              <LoadingSpinner size="lg" text="Connecting to XRPL network..." />
-            )}
-            {connectionError && !isConnected && (
-              <ErrorMessage message={`Connection Failed: ${connectionError}`} />
             )}
           </main>
 
           <footer className="bg-gray-900 border-t border-gray-800 mt-8 rounded-b-xl">
             <div className="container mx-auto p-6 text-center text-gray-500 text-sm">
               <p>Built with Next.js, Tailwind CSS, and xrpl.js</p>
-              <p className="mt-1">Connected to {XRPL_NODE}</p>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                {isConnected ? (
+                  <span className="flex items-center gap-1 text-green-400"><span className="inline-block w-2 h-2 rounded-full bg-green-400"></span>Connected</span>
+                ) : connectionError ? (
+                  <span className="flex items-center gap-1 text-red-400"><span className="inline-block w-2 h-2 rounded-full bg-red-400"></span>{connectionError}</span>
+                ) : (
+                  <span className="flex items-center gap-1 text-gray-400"><span className="inline-block w-2 h-2 rounded-full bg-gray-400"></span>Connecting...</span>
+                )}
+                <span className="ml-2">Connected to {XRPL_NODE}</span>
+              </div>
             </div>
           </footer>
         </div>
@@ -530,9 +544,6 @@ const GovernancePage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch validator list (UNL) - placeholder, as 'validators' command may not be available on all nodes
-        // You can use 'server_info' or 'validator_list_sites' for more governance data
-        // For now, show a placeholder
         setValidators([]);
       } catch (err) {
         setError('Failed to fetch validator list.');
