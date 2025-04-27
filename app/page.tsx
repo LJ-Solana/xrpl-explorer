@@ -1,9 +1,5 @@
 "use client";
 
-// ** IMPORTANT **
-// This code should typically reside in `pages/index.js` or `pages/index.jsx`
-// in a standard Next.js project setup.
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Client } from 'xrpl';
 import SearchBar from './components/SearchBar';
@@ -18,7 +14,8 @@ import LedgerProgressCard from './components/LedgerProgressCard';
 import TPSCard from './components/TPSCard';
 import LatestLedgersCard from './components/LatestLedgersCard';
 import LedgerDetails from './components/LedgerDetails';
-import { LedgerProgressProvider } from './context/LedgerProgressContext';
+import { LedgerProgressProvider, useLedgerProgress } from './context/LedgerProgressContext';
+import Header from './components/Header';
 
 // --- Type Definitions ---
 interface LedgerData {
@@ -65,7 +62,7 @@ interface TransactionInfo {
 }
 
 interface ViewState {
-  type: 'home' | 'account' | 'tx' | 'ledger';
+  type: 'home' | 'account' | 'tx' | 'ledger' | 'governance';
   identifier: string | null;
 }
 
@@ -378,13 +375,11 @@ export default function HomePage() {
     }
   }, []); // No dependencies needed for connectClient itself
 
-  // Effect for Client Connection & Disconnection (Runs only on Client)
   useEffect(() => {
     // Ensure this runs only on the client
     if (typeof window !== 'undefined') {
         connectClient(); // Attempt connection on mount
 
-        // Disconnect on unmount
         return () => {
             if (clientRef.current?.isConnected()) {
                 console.log('Disconnecting XRPL Client on unmount...');
@@ -458,22 +453,18 @@ export default function HomePage() {
       <div className="min-h-screen flex flex-col font-sans bg-black text-gray-100" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' }}>
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-md z-0" />
         <div className="relative z-10 flex flex-col min-h-screen">
-          <header className="bg-gray-900 border-b border-gray-800 shadow-lg rounded-t-xl">
-            <div className="container mx-auto flex flex-col md:flex-row items-center justify-between py-6 px-4">
-              <div className="flex items-center gap-3">
-                <svg className="h-8 w-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2" /></svg>
-                <span className="text-2xl font-bold tracking-tight text-white">Beacon</span>
-              </div>
-              <div className="flex items-center gap-6 mt-4 md:mt-0">
-                <nav className="flex gap-4 text-sm">
-                  <a href="#" className="hover:text-purple-400 transition">Explore</a>
-                  <a href="#" className="hover:text-purple-400 transition">Tools</a>
-                  <a href="#" className="hover:text-purple-400 transition">Resources</a>
-                </nav>
-                <button className="ml-4 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold shadow">Sign In</button>
-              </div>
-            </div>
-          </header>
+          <Header
+            activeTab={view.type === 'governance' ? 'governance' : 'explorer'}
+            onTabChange={(tab) => {
+              if (tab === 'explorer') {
+                setView({ type: 'home', identifier: null });
+                window.location.hash = '/';
+              } else if (tab === 'governance') {
+                setView({ type: 'governance', identifier: null });
+                window.location.hash = '/governance';
+              }
+            }}
+          />
 
           <main className="container mx-auto p-6 flex-1">
             <SearchBar onSearch={handleSearch} />
@@ -524,3 +515,53 @@ export default function HomePage() {
     </LedgerProgressProvider>
   );
 }
+
+// GovernancePage component
+const GovernancePage: React.FC = () => {
+  const { client, isConnected } = useLedgerProgress();
+  const [validators, setValidators] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!client || !isConnected) return;
+    let isMounted = true;
+    const fetchValidators = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch validator list (UNL) - placeholder, as 'validators' command may not be available on all nodes
+        // You can use 'server_info' or 'validator_list_sites' for more governance data
+        // For now, show a placeholder
+        setValidators([]);
+      } catch (err) {
+        setError('Failed to fetch validator list.');
+        setValidators([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchValidators();
+    return () => { isMounted = false; };
+  }, [client, isConnected]);
+
+  return (
+    <div className="max-w-3xl mx-auto bg-gray-900 rounded-xl shadow-lg p-8 mt-8">
+      <h2 className="text-2xl font-bold text-purple-400 mb-4">XRPL Governance</h2>
+      <p className="mb-6 text-gray-300">This page shows the current Unique Node List (UNL) and validator voting status on the XRPL network.</p>
+      {loading ? (
+        <div className="text-center text-gray-400 py-8">Loading validators...</div>
+      ) : error ? (
+        <div className="text-center text-red-400 py-8">{error}</div>
+      ) : (
+        <>
+          <h3 className="text-lg font-semibold text-purple-300 mb-2">Unique Node List (UNL)</h3>
+          <div className="overflow-x-auto">
+            {/* Placeholder for UNL table, as public validator list is not available from all public nodes */}
+            <div className="text-gray-400 py-8">UNL and validator voting status will appear here. (Expand with 'validator_list_sites' or 'server_info' as needed.)</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
